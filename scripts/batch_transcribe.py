@@ -1,9 +1,17 @@
 # -*- coding: utf-8 -*-
-"""批量转写：复用 dsh-stt 的引擎参数，模型只加载一次。
+"""批量转写：本地 faster-whisper，模型只加载一次（逐个调用 CLI 会重复加载，纯浪费）。
+
+零外部依赖：只用 Python 标准库 + faster-whisper（pip 包），不依赖任何其它项目或技能。
+引擎参数已按中文口播场景调好：language=zh / beam_size=5 / temperature=0 /
+VAD 过滤 / hallucination_silence_threshold，低置信度段落标 ★复核。
+
 设备：优先 CUDA，推理失败（缺 cublas/cudnn）自动回退 CPU。
-注意两处本机坑：
-  1) NO_PROXY 含 "[::1]" 会让代理解析报 Invalid port，必须先清掉
-  2) CUDA wheel 可能装在 user site，DLL 目录要手动加进搜索路径
+注意两处常见坑（脚本已自动处理）：
+  1) NO_PROXY 含 "[::1]" 会让 HuggingFace 客户端崩溃（Invalid port: ':1]'），必须先清掉代理变量
+  2) CUDA wheel 常装在 user site，DLL 目录要手动加进搜索路径；
+     且模型能加载 != 推理可用（CUDA 秒加载、一推理才报缺 cublas）
+
+用法: python batch_transcribe.py <素材目录> [small|medium|large-v3] [限制条数]
 """
 import os, sys, json, time, site
 from pathlib import Path
