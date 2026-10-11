@@ -53,6 +53,21 @@ acknowledgement and a compliance reminder for you as a user.
 README 里的一句 "MIT License" 表达了作者意向，但不构成正式的许可授予，
 法律效力弱得多。**在把它用于任何需要授权的场景前，建议直接联系作者取得明确许可。**
 
+### 该上游自身的来源链（如果你要接入它，请一并核查）
+
+经查，parse.shenzjd.com 内部的解析器**并非全部原创**，而是移植/参考了多个项目。
+若你通过 PARSER_CORE_DIR 接入它，**你需要核查的是整条来源链，而不是它一个**：
+
+| 上游内部的来源 | 许可 | 证据位置 |
+|---|---|---|
+| 652036/video-unwatermark | Apache-2.0 | douyinFallback.js 标注「移植自」；另有多处「参考」 |
+| wujunwei928/parse-video | 未见声明 | src/app/api/parse/route.js 标注「参考」 |
+| Turso HTTP API | — | turso-client.js 协议参考 |
+| 17change / douyin.wtf / yujn / tenapi | 各自公告 | douyin.js 兜底引擎「竞速」 |
+
+> 换句话说：**接入它 = 接入它继承的全部许可义务**（含 Apache-2.0 的署名义务）。
+> 这也是本仓库选择不内置解析器代码的原因之一。
+
 ---
 
 ## 3. 652036/video-unwatermark（经由上游间接涉及）
