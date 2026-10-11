@@ -13,6 +13,7 @@
   "scripts": {
     "collect": "node scripts/browser-collect.mjs",
     "download": "node scripts/download.mjs",
+    "build:resolver": "node scripts/build-resolver.mjs",
     "corpus": "node scripts/build_corpus.mjs"
   },
   "keywords": [

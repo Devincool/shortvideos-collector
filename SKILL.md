@@ -39,8 +39,13 @@ metadata:
 node scripts/browser-collect.mjs --sec <sec_uid|主页链接|抖音号> --limit 100 --out ./works.json
 
 # ② 下载（二选一）
+#   路径 A：快照直链（列表刚采完时用，最快）
 node scripts/download.mjs --list ./works.json --out ./videos --from-snapshot --concurrency 4
-PARSER_CORE_DIR=/path/to/parser-core node scripts/download.mjs --list ./works.json --out ./videos --concurrency 1 --delay 3000
+
+#   路径 B：外部解析器（列表放久了用，现取现用不过期）
+git clone --depth 1 https://github.com/wu529778790/parse.shenzjd.com.git upstream
+node scripts/build-resolver.mjs --source upstream --out ./resolver
+PARSER_CORE_DIR=./resolver node scripts/download.mjs --list ./works.json --out ./videos --concurrency 1 --delay 3000
 
 # ③ 转写
 python scripts/batch_transcribe.py ./videos small
@@ -74,6 +79,16 @@ node scripts/build_corpus.mjs --works ./works.json --material ./videos --out ./_
 
 - **列表刚采完** → ~~~--from-snapshot~~~（快，不走抖音页面，无限流风险；但直链几小时后失效）
 - **列表放久了 / 快照 403** → 外部解析器（现取现用不过期；但每个视频 fetch 一次页面，有风控风险）
+- **快照过期又不想建解析器** → 直接**重跑一次采集**（1~2 分钟），拿到新鲜快照即可
+
+> 上游仓库里**没有**现成解析器目录，clone 只得到 src/。
+> 必须先用 ~~~build-resolver.mjs~~~ 构建入口，否则 PARSER_CORE_DIR 指向的目录不可用。
+> 构建脚本是原创代码，不含上游源码。
+
+### 3.1 偶发 403 属正常
+
+解析器路径下，个别视频的 CDN 直链会返回 403（与视频编码/风控有关）。
+实测同一批里约 1/3 可能偶发失败，**重试即可**，不代表链路故障。
 
 ### 4. 下载限流要降速，不要下结论
 
@@ -150,6 +165,7 @@ shortvideos-collector/
 └── scripts/
     ├── browser-collect.mjs
     ├── download.mjs
+    ├── build-resolver.mjs
     ├── batch_transcribe.py
     └── build_corpus.mjs
 ~~~

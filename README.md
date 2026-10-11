@@ -129,10 +129,17 @@ node scripts/browser-collect.mjs --sec <...>
 # A
 node scripts/download.mjs --list ./works.json --out ./videos --from-snapshot --concurrency 4
 
-# B —— 先自己获取一份解析器，再指向它
-PARSER_CORE_DIR=/path/to/parser-core node scripts/download.mjs \
+# B —— 先自己构建一份解析器，再指向它（三步）
+git clone --depth 1 https://github.com/wu529778790/parse.shenzjd.com.git upstream
+node scripts/build-resolver.mjs --source upstream --out ./resolver
+PARSER_CORE_DIR=./resolver node scripts/download.mjs \
     --list ./works.json --out ./videos --concurrency 1 --delay 3000
 ~~~
+
+> **注意**：上游仓库里**没有**现成的解析器目录，直接 clone 只能拿到 src/。
+> build-resolver.mjs 会把所需的模块闭包抽出来并生成入口，产出一个零依赖、
+> 可独立运行的解析器。**该脚本是原创代码，不包含任何上游源码**，
+> 它只做「读取你本地的仓库 → 复制 → 重写 import」。
 
 ### 注意限流
 
@@ -208,6 +215,7 @@ shortvideos-collector/
 └── scripts/
     ├── browser-collect.mjs   CDP 作品采集
     ├── download.mjs          批量下载（快照 / 外部解析器）
+    ├── build-resolver.mjs    从上游克隆构建解析器（原创抽取脚本）
     ├── batch_transcribe.py   批量转写
     └── build_corpus.mjs      语料合成
 ~~~

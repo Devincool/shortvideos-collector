@@ -130,10 +130,18 @@ Two paths — pick by situation:
 # A
 node scripts/download.mjs --list ./works.json --out ./videos --from-snapshot --concurrency 4
 
-# B — obtain a resolver yourself, then point at it
-PARSER_CORE_DIR=/path/to/parser-core node scripts/download.mjs \
+# B — build a resolver yourself first, then point at it (3 steps)
+git clone --depth 1 https://github.com/wu529778790/parse.shenzjd.com.git upstream
+node scripts/build-resolver.mjs --source upstream --out ./resolver
+PARSER_CORE_DIR=./resolver node scripts/download.mjs \
     --list ./works.json --out ./videos --concurrency 1 --delay 3000
 ~~~
+
+> **Note**: the upstream repository contains **no ready-made resolver directory** —
+> a plain clone only gives you src/. build-resolver.mjs extracts the required module
+> closure and generates an entry point, producing a zero-dependency, standalone
+> resolver. **The script is original code and ships none of the upstream sources**;
+> it only reads your local clone, copies modules and rewrites imports.
 
 ### Watch out for rate limiting
 
@@ -212,6 +220,7 @@ shortvideos-collector/
 └── scripts/
     ├── browser-collect.mjs  CDP works collector
     ├── download.mjs         Bulk downloader (snapshot / external resolver)
+    ├── build-resolver.mjs   Build a resolver from an upstream clone
     ├── batch_transcribe.py  Batch transcription
     └── build_corpus.mjs     Corpus builder
 ~~~
