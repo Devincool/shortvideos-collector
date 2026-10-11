@@ -1,5 +1,8 @@
 # 第三方组件声明 / Third-Party Notices
 
+> **适用范围**：仓库根目录的 LICENSE（MIT）**仅适用于本仓库的原创代码**——
+> scripts/ 下的脚本与各文档文件。它**不适用于**你另行安装以扩展本工具的第三方组件。
+
 本仓库**不包含任何第三方源代码**，全部为原创实现，按 MIT 许可发布。
 
 This repository **contains no third-party source code**. Everything is original
