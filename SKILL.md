@@ -160,7 +160,6 @@ GPU float16 约 **14.7× 实时**，CPU int8 只有 **2.5×** —— 153 分钟�
 shortvideos-collector/
 ├── SKILL.md               本文件
 ├── README.md / README.en.md   中英文文档
-├── THIRD-PARTY.md         第三方组件与许可声明
 ├── LICENSE                MIT
 └── scripts/
     ├── browser-collect.mjs
@@ -176,5 +175,4 @@ shortvideos-collector/
 
 - 只采集抖音**公开**数据。采集内容的**版权归原创作者**，不得二次分发或商用。
 - 本仓库为原创代码，按 **MIT** 发布，**不包含任何第三方代码**。
-- 若自行引入第三方解析器（见 THIRD-PARTY.md），**其署名与许可是你的强制义务**，
-  且其中非商业许可的部分不得商用。
+- 下载功能可选接入的外部解析器（parse.shenzjd.com）无 LICENSE 文件，使用条件请自行确认。

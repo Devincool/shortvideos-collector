@@ -2,6 +2,8 @@
 
 [English](./README.en.md) | **中文**
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+
 > 抖音博主视频采集全流水线：从作品列表一路做到可分析的文字语料。
 
 ~~~text
@@ -210,7 +212,6 @@ shortvideos-collector/
 ├── SKILL.md               Agent 使用说明（技能入口）
 ├── README.md              中文文档（本文件）
 ├── README.en.md           English docs
-├── THIRD-PARTY.md         第三方组件与许可声明（重要，请读）
 ├── LICENSE                MIT
 └── scripts/
     ├── browser-collect.mjs   CDP 作品采集
@@ -241,17 +242,12 @@ A：目前只做了抖音。架构上不排除扩展，但各平台的签名与�
 
 ---
 
-## 第三方与许可
+## 许可
 
-本仓库**全部为原创代码**，按 **MIT** 发布。
+本仓库为**原创代码**，按 **MIT** 发布，**不包含任何第三方代码**。
 
-设计上参考了两个开源项目，但**未包含它们的任何代码**（详见 [THIRD-PARTY.md](./THIRD-PARTY.md)）：
-
-- [ShilongLee/Crawler](https://github.com/ShilongLee/Crawler) —— 非商业使用许可，仅参考接口设计
-- [parse.shenzjd.com](https://github.com/wu529778790/parse.shenzjd.com) —— **无 LICENSE 文件**，可作为可选外部解析器
-
-> ⚠️ 如果你自行引入上述项目或其衍生物（后者内部含 Apache-2.0 代码），
-> **署名与许可副本是强制义务**，且非商业许可的部分不得商用。
+下载功能可选接入外部解析器（parse.shenzjd.com）。该上游仓库没有 LICENSE 文件，
+其使用条件请自行确认——本仓库只提供接入机制，不分发其代码。
 
 ---
 

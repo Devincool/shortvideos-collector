@@ -7,7 +7,7 @@
  * 产出一个零依赖、可独立运行的解析器，供 download.mjs 的 PARSER_CORE_DIR 使用。
  *
  * 本脚本是原创代码，不包含任何上游源码；它只做「读取你本地的仓库 → 复制 → 重写 import」。
- * 上游代码的使用条件与许可风险由你自行确认（见 THIRD-PARTY.md）。
+ * 上游仓库没有 LICENSE 文件，其代码的使用条件请自行确认。
  *
  * 用法:
  *   git clone https://github.com/wu529778790/parse.shenzjd.com.git upstream

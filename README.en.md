@@ -2,6 +2,8 @@
 
 **English** | [中文](./README.md)
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+
 > An end-to-end pipeline for Douyin (TikTok China) creator videos — from a works list all the way to an analyzable text corpus.
 
 ~~~text
@@ -215,7 +217,6 @@ shortvideos-collector/
 ├── SKILL.md               Agent-facing usage guide
 ├── README.md              Chinese docs
 ├── README.en.md           English docs (this file)
-├── THIRD-PARTY.md         Third-party components & licenses (please read)
 ├── LICENSE                MIT
 └── scripts/
     ├── browser-collect.mjs  CDP works collector
@@ -250,19 +251,13 @@ platform has entirely different signing and anti-bot mechanisms.
 
 ---
 
-## Third party & license
+## License
 
-This repository is **entirely original code**, released under **MIT**.
+This repository is **original code**, released under **MIT**, and **includes no third-party code**.
 
-Two open-source projects informed the design, but **none of their code is included**
-(see [THIRD-PARTY.md](./THIRD-PARTY.md)):
-
-- [ShilongLee/Crawler](https://github.com/ShilongLee/Crawler) — non-commercial license; interface design reference only
-- [parse.shenzjd.com](https://github.com/wu529778790/parse.shenzjd.com) — **no LICENSE file**; usable as an optional external resolver
-
-> If you introduce either project (or derivatives — the latter contains Apache-2.0 code),
-> **attribution and license copies are mandatory**, and the non-commercial portions may
-> not be used commercially.
+The download feature can optionally plug in an external resolver (parse.shenzjd.com).
+That upstream repository has no LICENSE file; verify its terms yourself — this repository
+only provides the integration mechanism and does not distribute its code.
 
 ---
 
