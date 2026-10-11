@@ -1,0 +1,33 @@
+# 依赖
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+
+# 采集与下载产物（数据，不入库）
+works.json
+works*.json
+*.mp4
+*.mov
+*.mkv
+videos/
+downloads/
+_corpus.md
+*.txt
+_collect.log
+_download-report.json
+_*.log
+
+# 凭据：绝对不要入库
+.env
+.env.*
+*.cookie
+.cookie.txt
+cookies.txt
+
+# 编辑器 / 系统
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp

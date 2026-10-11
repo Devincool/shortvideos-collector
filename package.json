@@ -1,0 +1,36 @@
+{
+  "name": "shortvideos-collector",
+  "version": "1.0.0",
+  "description": "End-to-end Douyin creator video pipeline: CDP works listing, watermark-free download, whisper transcription, timeline corpus.",
+  "description_zh": "抖音博主视频采集全流水线：CDP 采集作品列表 → 无水印下载 → whisper 转写 → 时间线语料。",
+  "type": "module",
+  "license": "MIT",
+  "private": false,
+  "engines": {
+    "node": ">=20",
+    "python": ">=3.10"
+  },
+  "scripts": {
+    "collect": "node scripts/browser-collect.mjs",
+    "download": "node scripts/download.mjs",
+    "corpus": "node scripts/build_corpus.mjs"
+  },
+  "keywords": [
+    "douyin",
+    "tiktok",
+    "scraper",
+    "whisper",
+    "transcription",
+    "cdp",
+    "video-downloader",
+    "skill",
+    "抖音",
+    "无水印"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Devincool/shortvideos-collector.git"
+  },
+  "author": "Devincool",
+  "dependencies": {}
+}
