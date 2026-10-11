@@ -199,9 +199,9 @@ node scripts/browser-collect.mjs --sec <sec_uid|profile-url|douyin-id> [--limit 
 
 All three input forms are accepted:
 
-- Profile URL: ~~~https://www.douyin.com/user/MS4wLjABAAAA...~~~
-- Raw sec_uid (starts with ~~~MS4wLj~~~)
-- **Douyin ID** — the plain number shown on the profile, e.g. ~~~203775400~~~
+- Profile URL: `https://www.douyin.com/user/MS4wLjABAAAA...`
+- Raw sec_uid (starts with `MS4wLj`)
+- **Douyin ID** — the plain number shown on the profile, e.g. `203775400`
 
 ### You must FULLY quit the browser first
 
@@ -231,8 +231,8 @@ Because it does not work. Measured:
 Same cookies, same headers, same signature — **only the endpoint differs**. So it is a
 stale signature algorithm, not a cookie problem.
 
-Further localization: adding ~~~uifid~~~ to the query changes the error from
-~~~Uifid Not Found~~~ to ~~~Signature Not Found~~~ — meaning that endpoint demands a
+Further localization: adding `uifid` to the query changes the error from
+`Uifid Not Found` to `Signature Not Found` — meaning that endpoint demands a
 **uifid-bound signature** which the publicly known a_bogus algorithm cannot produce.
 
 **Only the browser itself can make that request.** That is why this tool uses CDP.
@@ -255,8 +255,8 @@ Two paths — pick by situation:
 
 | Path | How | URL lifetime | Speed | Rate-limit risk |
 |---|---|---|---|---|
-| **A snapshot** | ~~~--from-snapshot~~~ | expires after hours | fast | none |
-| **B external resolver** | set ~~~PARSER_CORE_DIR~~~ | freshly resolved, does not expire | slow | yes |
+| **A snapshot** | `--from-snapshot` | expires after hours | fast | none |
+| **B external resolver** | set `PARSER_CORE_DIR` | freshly resolved, does not expire | slow | yes |
 
 **List just collected -> use A.** **List is old / snapshots return 403 -> use B.**
 
@@ -287,7 +287,7 @@ concurrency 3 over 100 videos -> everything fails after ~41 items: egress IP thr
 
 Correct handling:
 
-1. **Lower concurrency, add delay**: ~~~--concurrency 1 --delay 3000~~~
+1. **Lower concurrency, add delay**: `--concurrency 1 --delay 3000`
 2. **Wait 1-2 hours** — egress IP throttling clears by itself
 3. While throttled, switch to **path A (snapshot)** and finish the job
 
@@ -305,7 +305,7 @@ python scripts/batch_transcribe.py <media-dir> [small|medium] [limit]
 
 - The model is **loaded once** (calling the CLI per file reloads it every time — pure waste on 100 files)
 - Already-transcribed files are skipped, so it is resumable
-- Output carries timestamps: ~~~[start-end] text~~~, low-confidence segments marked ~~~REVIEW~~~
+- Output carries timestamps: `[start-end] text`, low-confidence segments marked `REVIEW`
 
 **Measured performance (RTX 2060 / Ryzen 7 3700X):**
 
@@ -318,8 +318,8 @@ python scripts/batch_transcribe.py <media-dir> [small|medium] [limit]
 
 ### Two environment traps it handles for you
 
-1. **A NO_PROXY entry of ~~~[::1]~~~ crashes the HuggingFace client outright**
-   ~~~Invalid port: ':1]'~~~ — nothing to do with GPU/CPU; the proxy library fails to parse no_proxy.
+1. **A NO_PROXY entry of `[::1]` crashes the HuggingFace client outright**
+   `Invalid port: ':1]'` — nothing to do with GPU/CPU; the proxy library fails to parse no_proxy.
 2. **CUDA wheels often land in the user site**, while most scripts only look at system
    site-packages. This script checks both and registers the DLL search path. Also note
    **a model that loads is not necessarily a model that runs** (CUDA loads instantly,
@@ -510,6 +510,8 @@ shortvideos-collector/
 ├── README.md              Chinese docs
 ├── README.en.md           English docs (this file)
 ├── LICENSE                MIT
+├── assets/
+│   └── wechat-qr.png      WeChat QR code (contact)
 └── scripts/
     ├── browser-collect.mjs  CDP works collector
     ├── download.mjs         Bulk downloader (snapshot / external resolver)
@@ -527,11 +529,27 @@ A: While running, the browser holds a **hard exclusive lock** on its profile and
 database. Other processes simply cannot read them. This is an OS file lock, not a
 permissions issue — shared reads and backup-mode copies fail too.
 
-**Q: How accurate is the transcription?**
+**Q: How accurate is the transcription, and can it be verified?**
+
 A: Chinese speech is broadly usable, but **homophone errors are frequent for
 finance/professional jargon** (measured: "竞价" heard as "进价", "妖股" as "腰骨").
-Review anything important by hand, or use the ~~~medium~~~ model. Low-confidence
-segments are flagged with ~~~REVIEW~~~.
+Low-confidence segments are flagged with `REVIEW` automatically.
+
+One caveat: **self-reported confidence alone will not catch everything** — homophone
+errors are precisely the case where the model is confidently wrong. For higher
+reliability, **add a second ASR module and cross-check**:
+
+1. **Two-model diff** — run `small` and `medium` / `large-v3`, diff segment by
+   segment, and route disagreements to human review
+2. **Cross-engine diff** — run an engine of a different lineage (e.g. FunASR/Paraformer,
+   whisper.cpp). **Two different engines are far less likely to make the same mistake**
+   than one engine at two model sizes, so the signal-to-noise is much better
+3. **Glossary correction** — keep a domain term list and apply matching substitutions;
+   the hit rate is immediate
+
+> This repo **does not ship** a verification module today — the above are extension
+> directions. `batch_transcribe.py` emits plain text plus timestamps, so aligning a
+> second engine's output is a small change.
 
 **Q: Can it collect other creators?**
 A: Yes — it only scrapes public data. Still, respect the platform terms and copyright
@@ -558,3 +576,17 @@ only provides the integration mechanism and does not distribute its code.
 - This tool only collects **public** Douyin data, for technical learning and internal analysis.
 - **Copyright of collected content belongs to its original creators.** Do not redistribute or use commercially.
 - Comply with Douyin's Terms of Service and applicable law. You bear all consequences of using this tool.
+
+---
+
+## Contact
+
+Questions, usage discussions, or custom work (bulk collection, a transcription
+verification module, wiring this into your own analysis pipeline) — add me on WeChat:
+
+<img src="./assets/wechat-qr.png" alt="WeChat QR code" width="240">
+
+You can also open an [issue](https://github.com/Devincool/shortvideos-collector/issues).
+
+> If the QR code cannot be scanned or the request fails (e.g. the daily limit is
+> reached), please use Issues instead.

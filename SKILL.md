@@ -23,10 +23,10 @@ metadata:
 
 | 段 | 脚本 | 需要登录 | 产物 |
 |---|---|---|---|
-| ① 取列表 | ~~~scripts/browser-collect.mjs~~~ | **需要**（浏览器已登录即可） | ~~~works.json~~~ |
-| ② 下载 | ~~~scripts/download.mjs~~~ | 不需要 | ~~~*.mp4~~~ |
-| ③ 转写 | ~~~scripts/batch_transcribe.py~~~ | 不需要 | ~~~*.txt~~~ |
-| ④ 整理 | ~~~scripts/build_corpus.mjs~~~ | 不需要 | ~~~_corpus.md~~~ |
+| ① 取列表 | `scripts/browser-collect.mjs` | **需要**（浏览器已登录即可） | `works.json` |
+| ② 下载 | `scripts/download.mjs` | 不需要 | `*.mp4` |
+| ③ 转写 | `scripts/batch_transcribe.py` | 不需要 | `*.txt` |
+| ④ 整理 | `scripts/build_corpus.mjs` | 不需要 | `_corpus.md` |
 
 除①外全程不需要 Cookie；转写在本机完成，数据不出本地。
 
@@ -77,12 +77,12 @@ node scripts/build_corpus.mjs --works ./works.json --material ./videos --out ./_
 
 ### 3. 下载路径按场景选
 
-- **列表刚采完** → ~~~--from-snapshot~~~（快，不走抖音页面，无限流风险；但直链几小时后失效）
+- **列表刚采完** → `--from-snapshot`（快，不走抖音页面，无限流风险；但直链几小时后失效）
 - **列表放久了 / 快照 403** → 外部解析器（现取现用不过期；但每个视频 fetch 一次页面，有风控风险）
 - **快照过期又不想建解析器** → 直接**重跑一次采集**（1~2 分钟），拿到新鲜快照即可
 
 > 上游仓库里**没有**现成解析器目录，clone 只得到 src/。
-> 必须先用 ~~~build-resolver.mjs~~~ 构建入口，否则 PARSER_CORE_DIR 指向的目录不可用。
+> 必须先用 `build-resolver.mjs` 构建入口，否则 PARSER_CORE_DIR 指向的目录不可用。
 > 构建脚本是原创代码，不含上游源码。
 
 ### 3.1 偶发 403 属正常
@@ -93,16 +93,16 @@ node scripts/build_corpus.mjs --works ./works.json --material ./videos --out ./_
 ### 4. 下载限流要降速，不要下结论
 
 并发 3 打 100 个 → 约 41 个后全部失败（网络出口被限流）。
-正确处置：~~~--concurrency 1 --delay 3000~~~，**等 1~2 小时自行恢复**，或用快照路径先把活干完。
+正确处置：`--concurrency 1 --delay 3000`，**等 1~2 小时自行恢复**，或用快照路径先把活干完。
 实测限流期间带 Cookie 重试也无效（IP 级）。**缓过来后同样的做法 10/10 通过。**
 
 ### 5. 转写优先用 GPU
 
 GPU float16 约 **14.7× 实时**，CPU int8 只有 **2.5×** —— 153 分钟音频差 6 倍（10 分钟 vs 63 分钟）。
-需先 ~~~pip install nvidia-cublas-cu12 nvidia-cudnn-cu12~~~。
+需先 `pip install nvidia-cublas-cu12 nvidia-cudnn-cu12`。
 
 脚本已内置处理两个环境坑：
-- ~~~NO_PROXY~~~ 含 ~~~[::1]~~~ 会让 HuggingFace 客户端崩溃（~~~Invalid port: ':1]'~~~）
+- `NO_PROXY` 含 `[::1]` 会让 HuggingFace 客户端崩溃（`Invalid port: ':1]'`）
 - CUDA 库常装在 user site，需手动注册 DLL 搜索路径；且**模型能加载 ≠ 推理可用**，会自动回退 CPU
 
 ### 6. 语料大时不要硬塞上下文
@@ -112,7 +112,7 @@ GPU float16 约 **14.7× 实时**，CPU int8 只有 **2.5×** —— 153 分钟�
 ### 7. 转写有噪声，不要当成原话直接引用
 
 金融术语同音字错误常见（竞价→进价、妖股→腰骨、卡异动→卡一栋）。
-低置信度段落已标 ~~~★复核~~~。对外使用前建议人工扫一遍。
+低置信度段落已标 `★复核`。对外使用前建议人工扫一遍。
 
 ---
 
@@ -141,9 +141,9 @@ GPU float16 约 **14.7× 实时**，CPU int8 只有 **2.5×** —— 153 分钟�
 }
 ~~~
 
-> ~~~play_url_snapshot~~~ 是采集当时的快照，**带时效签名会过期**，仅供 ~~~--from-snapshot~~~ 使用。
+> `play_url_snapshot` 是采集当时的快照，**带时效签名会过期**，仅供 `--from-snapshot` 使用。
 
-### 下载报告（~~~<out>/_download-report.json~~~）
+### 下载报告（`<out>/_download-report.json`）
 
 ~~~json
 { "total": 3, "ok": 2, "source": "snapshot", "results": [

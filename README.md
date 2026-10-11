@@ -198,9 +198,9 @@ node scripts/browser-collect.mjs --sec <sec_uid|主页链接|抖音号> [--limit
 
 三种入参都支持：
 
-- 主页链接 ~~~https://www.douyin.com/user/MS4wLjABAAAA...~~~
-- 裸 sec_uid（~~~MS4wLj~~~ 开头）
-- **抖音号**（主页上那串数字，如 ~~~203775400~~~）
+- 主页链接 `https://www.douyin.com/user/MS4wLjABAAAA...`
+- 裸 sec_uid（`MS4wLj` 开头）
+- **抖音号**（主页上那串数字，如 `203775400`）
 
 ### 必须先完全退出浏览器
 
@@ -228,8 +228,8 @@ node scripts/browser-collect.mjs --sec <sec_uid|主页链接|抖音号> [--limit
 
 同一套 Cookie、请求头、签名，**只有端点不同** → 是签名算法过时，不是 Cookie 问题。
 
-进一步定位：把 ~~~uifid~~~ 加进 query 后，报错从 ~~~Uifid Not Found~~~ 变成
-~~~Signature Not Found~~~ —— 说明该端点要求一个 **uifid 绑定的新签名**，
+进一步定位：把 `uifid` 加进 query 后，报错从 `Uifid Not Found` 变成
+`Signature Not Found` —— 说明该端点要求一个 **uifid 绑定的新签名**，
 公开的 a_bogus 算法产不出来。
 
 **所以只能让浏览器自己发请求。** 这也是本工具选择 CDP 的原因。
@@ -252,8 +252,8 @@ node scripts/browser-collect.mjs --sec <...>
 
 | 路径 | 命令 | 直链时效 | 速度 | 风控风险 |
 |---|---|---|---|---|
-| **A 快照直链** | ~~~--from-snapshot~~~ | 数小时后失效 | 快 | 无 |
-| **B 外部解析器** | 设 ~~~PARSER_CORE_DIR~~~ | 现取现用，不过期 | 慢 | 有 |
+| **A 快照直链** | `--from-snapshot` | 数小时后失效 | 快 | 无 |
+| **B 外部解析器** | 设 `PARSER_CORE_DIR` | 现取现用，不过期 | 慢 | 有 |
 
 **列表刚采集完 → 用 A**（最快，完全不走抖音页面）
 **列表放久了 / 快照 403 → 用 B**（每次拿新鲜直链）
@@ -284,7 +284,7 @@ PARSER_CORE_DIR=./resolver node scripts/download.mjs \
 
 正确处置：
 
-1. **降并发 + 加间隔**：~~~--concurrency 1 --delay 3000~~~
+1. **降并发 + 加间隔**：`--concurrency 1 --delay 3000`
 2. **等 1~2 小时**，出口 IP 的限流会自行恢复
 3. 被限期间改用**路径 A（快照）** 先把活干完
 
@@ -301,7 +301,7 @@ python scripts/batch_transcribe.py <素材目录> [small|medium] [限制条数]
 
 - 模型**只加载一次**（逐个调用 CLI 会重复加载，100 个文件白白浪费）
 - 已转写的文件自动跳过，可中断续跑
-- 输出带时间轴：~~~[起-止] 文本~~~，低置信度段落标 ~~~★复核~~~
+- 输出带时间轴：`[起-止] 文本`，低置信度段落标 `★复核`
 
 **实测性能（RTX 2060 / Ryzen 7 3700X）**：
 
@@ -314,8 +314,8 @@ python scripts/batch_transcribe.py <素材目录> [small|medium] [限制条数]
 
 ### 两个必踩的环境坑（脚本已内置处理）
 
-1. **NO_PROXY 含 ~~~[::1]~~~ 会让 HuggingFace 客户端直接崩溃**
-   ~~~Invalid port: ':1]'~~~ —— 和 GPU/CPU 毫无关系，是代理库解析 no_proxy 失败。
+1. **NO_PROXY 含 `[::1]` 会让 HuggingFace 客户端直接崩溃**
+   `Invalid port: ':1]'` —— 和 GPU/CPU 毫无关系，是代理库解析 no_proxy 失败。
 2. **CUDA 库装到了 user site**，而多数脚本只查系统 site-packages。
    本脚本会同时检查两处并加上 DLL 搜索路径；另外 **模型加载成功 ≠ 推理可用**
    （CUDA 模型能秒加载，一推理才报缺 cublas），脚本会自动回退 CPU。
@@ -500,6 +500,8 @@ shortvideos-collector/
 ├── README.md              中文文档（本文件）
 ├── README.en.md           English docs
 ├── LICENSE                MIT
+├── assets/
+│   └── wechat-qr.png      微信二维码（联系方式）
 └── scripts/
     ├── browser-collect.mjs   CDP 作品采集
     ├── download.mjs          批量下载（快照 / 外部解析器）
@@ -516,10 +518,23 @@ shortvideos-collector/
 A：浏览器运行时对 profile 和 Cookie 库是**硬独占锁**，其他进程读不到。这是操作系统的文件锁，
 不是权限问题 —— 共享读、备份模式复制都不行。
 
-**Q：转写准确率如何？**
-A：中文口播内容整体可用，但**金融/专业术语的同音字错误较多**
-（实测：「竞价」→「进价」、「妖股」→「腰骨」、「卡异动」→「卡一栋」）。
-重要内容建议人工扫一遍，或换 ~~~medium~~~ 模型。脚本会对低置信度段落标 ~~~★复核~~~。
+**Q：转写准确率如何？能校验吗？**
+
+A：中文口播整体可用，但**金融/专业术语的同音字错误较多**（实测：「竞价」→「进价」、
+「妖股」→「腰骨」、「卡异动」→「卡一栋」）。低置信度段落脚本已自动标 `★复核`。
+
+但要清楚一点：**单靠一个模型的自置信度抓不全错误** —— 同音字恰恰是「模型很自信地写错」的
+典型场景。要更可靠，建议**额外接一个 ASR 模块做交叉校验**：
+
+1. **双模型比对** —— 用 `small` 与 `medium` / `large-v3` 各跑一遍，逐段 diff，
+   两边不一致的段落自动挑出来人工确认
+2. **跨引擎比对** —— 换一个不同血统的引擎再跑（如 FunASR/Paraformer、whisper.cpp）。
+   **不同引擎犯同一个错的概率远低于同引擎换模型**，信噪比高得多
+3. **术语表校正** —— 维护一份领域词表（「竞价 / 妖股 / 卡异动 / 分歧转一致」…）做匹配替换，
+   命中率立竿见影
+
+> 本仓库**当前未内置**校验模块，以上是扩展方向。`batch_transcribe.py` 输出的是
+> 纯文本 + 时间轴，接入第二个引擎时按时间段对齐即可，改动很小。
 
 **Q：能采别人的号吗？**
 A：能，采的是公开数据。但请遵守平台条款与著作权法，**不要二次分发他人作品**。
@@ -543,3 +558,16 @@ A：目前只做了抖音。架构上不排除扩展，但各平台的签名与�
 - 本工具仅采集抖音**公开**数据，仅供技术学习与内部分析。
 - 采集内容的**版权归原创作者所有**，请勿二次分发或用于商业用途。
 - 请遵守抖音平台服务条款及相关法律法规。使用本工具产生的一切后果由使用者自行承担。
+
+---
+
+## 联系作者
+
+有问题、想交流用法，或需要定制（批量采集、自建转写校验模块、接进你自己的分析流程），
+欢迎加微信：
+
+<img src="./assets/wechat-qr.png" alt="微信二维码" width="240">
+
+也可以在 [Issues](https://github.com/Devincool/shortvideos-collector/issues) 留言。
+
+> 若二维码无法识别或添加失败（例如当日次数已满），请改用 Issues。
