@@ -35,7 +35,11 @@ metadata:
 ## 标准流程
 
 ~~~bash
-# ① 取列表 —— 必须先「完全退出」浏览器（托盘右键退出，不是关窗口）
+# ① 取列表 —— 推荐「注入模式」：不需要退出浏览器
+node scripts/extract-cookies.mjs --browser quark --domain douyin.com --out .cookie.txt   # 只需一次
+node scripts/browser-collect.mjs --sec <sec_uid|主页链接|抖音号> --limit 200 --out ./works.json --cookie-file .cookie.txt
+
+# ①' 备选：真实 profile 模式（需先「完全退出」浏览器）
 node scripts/browser-collect.mjs --sec <sec_uid|主页链接|抖音号> --limit 100 --out ./works.json
 
 # ② 下载（二选一）
@@ -70,10 +74,24 @@ node scripts/build_corpus.mjs --works ./works.json --material ./videos --out ./_
 同一套 Cookie/头/签名只有端点不同 → 签名问题，不是 Cookie 问题。
 **不要在签名逆向或 Cookie 上耗时间**，直接用 CDP 让浏览器自己发请求。
 
-### 2. 浏览器必须先完全退出
+### 2. 优先用注入模式，别再等用户退浏览器
 
-浏览器运行时对 profile 与 Cookie 库是**硬独占锁**。关窗口无效（后台常驻进程仍在）。
-脚本会等待其退出，采集完再自动帮你重启。
+采集有两条路，**默认走注入模式**：
+
+| 模式 | 触发 | 是否需退浏览器 | 说明 |
+|---|---|---|---|
+| **注入模式** | 加 `--cookie-file` | **不需要** | 全新临时 profile + CDP 注入 cookie，不碰用户浏览器；实测 24 秒采 200 条 |
+| 真实 profile 模式 | 不加该参数 | 需要 | 没有 cookie 文件时的退路 |
+
+**为什么需要 cookie 文件**：抖音作品列表必须有登录态，而浏览器运行时 Cookie 库是
+**硬独占锁**（连共享读都不行），拿不到。所以流程是：
+**一次性提取 cookie（需退浏览器）→ 之后反复采集（不需要退）**。
+
+`extract-cookies.mjs` 零依赖（node:sqlite + node:crypto + PowerShell DPAPI）。
+两个实现要点：ProtectedData 只在 Windows PowerShell 里（pwsh 没有），要先 `Add-Type -AssemblyName System.Security`；
+解密后明文前 **32 字节是 SHA256(host_key)**，必须剥掉。
+
+> 若用户明确拒绝提供 cookie 文件，再退回真实 profile 模式：等其完全退出浏览器。
 
 ### 3. 下载路径按场景选
 
@@ -163,6 +181,7 @@ shortvideos-collector/
 ├── LICENSE                MIT
 └── scripts/
     ├── browser-collect.mjs
+    ├── extract-cookies.mjs
     ├── download.mjs
     ├── build-resolver.mjs
     ├── batch_transcribe.py

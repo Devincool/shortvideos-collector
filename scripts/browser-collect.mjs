@@ -14,11 +14,20 @@
  *      —— 真实滚轮事件能驱动任意滚动容器；window.scrollBy 对抖音无效。
  *   3) 兜底把所有可滚动容器的 scrollTop 推到底。
  *
- * 用法（需先完全退出浏览器，否则 profile 被锁、Cookie 库读不到）：
- *   node browser-collect.mjs [--sec <sec_uid>] [--limit 100]
- * 退出浏览器后本脚本会：检测退出 → 带调试启动 → 采集 → 关闭调试实例 → 正常重启浏览器
+ * 两种工作模式：
+ *
+ *   A) 注入模式（推荐，无需退出浏览器）
+ *      node browser-collect.mjs --sec <sec_uid> --cookie-file .cookie.txt
+ *      用全新临时 profile 启动独立实例，再用 CDP 注入已保存的登录 cookie。
+ *      全程不碰用户正在用的浏览器，可无人值守；代价是需要一份 cookie 文件
+ *      （用 extract-cookies.mjs 生成，或从 DevTools 手工复制）。
+ *
+ *   B) 真实 profile 模式
+ *      node browser-collect.mjs --sec <sec_uid>
+ *      等用户完全退出浏览器 → 用其真实 profile 带调试启动 → 采集 → 关闭实例 → 重启浏览器。
+ *      好处是不需要 cookie 文件；代价是必须先退出浏览器。
  */
-import { writeFileSync, appendFileSync } from "node:fs";
+import { writeFileSync, appendFileSync, readFileSync, rmSync, mkdirSync } from "node:fs";
 import { execFileSync, spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -35,10 +44,16 @@ const LIMIT = Number(argVal("--limit", "100"));
 const OUT = path.resolve(argVal("--out", "./works.json"));
 const LOG = path.resolve(argVal("--log", "./_collect.log"));
 const PORT = Number(argVal("--port", "9227"));
+// 注入模式：给了 --cookie-file 就用全新临时 profile + CDP 注入登录态，不碰用户浏览器
+const COOKIE_FILE = argVal("--cookie-file", "");
+const INJECT = COOKIE_FILE !== "";
+const PROFILE = path.resolve(argVal("--profile", path.join(process.env.TEMP || ".", "quark-inject")));
+const KEEP_PROFILE = argv.includes("--keep-profile");
 
 if (!SEC) {
-  console.error("用法: node browser-collect.mjs --sec <sec_uid|主页链接|抖音号> [--limit 100] [--out ./works.json]");
-  console.error("  浏览器需先完全退出（托盘右键退出，不是关窗口）");
+  console.error("用法:");
+  console.error("  注入模式（推荐，无需退出浏览器）: node browser-collect.mjs --sec <sec_uid> --cookie-file .cookie.txt [--limit 100] [--out ./works.json]");
+  console.error("  真实 profile 模式:               node browser-collect.mjs --sec <sec_uid>   （需先完全退出浏览器）");
   process.exit(2);
 }
 
@@ -53,13 +68,22 @@ function quarkRunning() {
   catch { return false; }
 }
 
-log("采集器 v2 守候启动：等待夸克完全退出...");
-const deadline = Date.now() + 60 * 60 * 1000;
-while (quarkRunning()) { if (Date.now() > deadline) { log("超时"); process.exit(1); } await sleep(2000); }
-log("夸克已退出");
-await sleep(2000);
+let launchProfile = USER_DATA;
+if (INJECT) {
+  // 注入模式：干净临时 profile，不与用户浏览器争锁
+  rmSync(PROFILE, { recursive: true, force: true });
+  mkdirSync(PROFILE, { recursive: true });
+  launchProfile = PROFILE;
+  log("注入模式：全新临时 profile " + PROFILE);
+} else {
+  log("采集器 v2 守候启动：等待夸克完全退出...");
+  const deadline = Date.now() + 60 * 60 * 1000;
+  while (quarkRunning()) { if (Date.now() > deadline) { log("超时"); process.exit(1); } await sleep(2000); }
+  log("夸克已退出");
+  await sleep(2000);
+}
 
-const child = spawn(QUARK, ["--user-data-dir=" + USER_DATA, "--remote-debugging-port=" + PORT,
+const child = spawn(QUARK, ["--user-data-dir=" + launchProfile, "--remote-debugging-port=" + PORT,
   "--no-first-run", "--no-default-browser-check", "about:blank"], { detached: true, stdio: "ignore" });
 child.unref();
 log("启动调试实例 PID " + child.pid);
@@ -109,6 +133,25 @@ await send("Network.enable", {}, S);
 await send("Page.enable", {}, S);
 await send("Runtime.enable", {}, S);
 await send("Network.setCacheDisabled", { cacheDisabled: true }, S);
+
+if (INJECT) {
+  // 注入登录态：把 cookie 文件里的键值对逐条 setCookie 到 .douyin.com
+  const raw = readFileSync(path.resolve(COOKIE_FILE), "utf8").trim();
+  const cookies = raw.split(/;\s*/).map((kv) => {
+    const i = kv.indexOf("=");
+    return i < 0 ? null : { name: kv.slice(0, i).trim(), value: kv.slice(i + 1).trim() };
+  }).filter((c) => c && c.name && c.value);
+  let okC = 0, badC = 0;
+  for (const c of cookies) {
+    try { await send("Network.setCookie", { name: c.name, value: c.value, domain: ".douyin.com", path: "/", secure: true }, S); okC++; }
+    catch { badC++; }
+  }
+  const ck = await send("Network.getCookies", { urls: ["https://www.douyin.com/"] }, S).catch(() => ({ cookies: [] }));
+  const names = (ck.cookies || []).map((c) => c.name);
+  log("cookie 注入: 成功 " + okC + " 失败 " + badC + " | douyin.com 现有 " + names.length + " 条，含 sessionid: " + names.includes("sessionid"));
+  if (!names.includes("sessionid")) log("⚠️ 未检测到 sessionid —— 登录态可能已失效或 cookie 文件不对，采集大概率拿不到数据");
+}
+
 // ★ 关键改进 1：让页面获得焦点，否则后台窗口的懒加载会被节流
 await send("Emulation.setFocusEmulationEnabled", { enabled: true }, S).catch((e) => log("  focus 模拟失败: " + e.message));
 await send("Page.bringToFront", {}, S).catch(() => {});
@@ -144,21 +187,37 @@ function compact(a) {
     digg_count: s.digg_count ?? null, comment_count: s.comment_count ?? null,
     share_count: s.share_count ?? null, collect_count: s.collect_count ?? null,
     author: a.author?.nickname || "", sec_uid: a.author?.sec_uid || SEC,
+    // 图文帖：逐张图片直链（供 OCR 提取图片内文字用）
+    images: Array.isArray(a.images)
+      ? a.images.map((im) => im?.url_list?.[0] || "")
+          .filter((u) => typeof u === "string" && u.startsWith("http"))
+      : [],
     share_url: "https://www.douyin.com/video/" + String(a.aweme_id || "") };
 }
 
 const rows = items.slice(0, LIMIT).map(compact);
+// 作者信息从实际采集到的数据里取，不写死 —— 否则换账号会串号
+const nickname = rows.find((r) => r.author)?.author || "";
+const realSecUid = rows.find((r) => r.sec_uid)?.sec_uid || SEC;
 writeFileSync(OUT, JSON.stringify({
-  sec_uid: SEC, nickname: "全能的野人", douyin_id: "203775400",
+  sec_uid: realSecUid, nickname, douyin_id: argVal("--id", ""),
   collected_at: new Date().toISOString(), collected_via: "browser-cdp-v2",
+  image_count: rows.filter((r) => r.is_image).length,
   total: rows.length, videos: rows,
 }, null, 2), "utf8");
 log("已写入 " + OUT + ": " + rows.length + " 条");
 
 ws.close();
 await sleep(1500);
-log("关闭调试实例并恢复夸克...");
+log("关闭调试实例...");
 try { execFileSync("powershell.exe", ["-NoProfile","-Command","Get-CimInstance Win32_Process -Filter \"Name='quark.exe'\" | Where-Object { $_.CommandLine -match 'remote-debugging-port=" + PORT + "' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"], { encoding: "utf8" }); } catch {}
 await sleep(3000);
-spawn(QUARK, ["--user-data-dir=" + USER_DATA, "--no-first-run"], { detached: true, stdio: "ignore" }).unref();
-log("完成");
+
+if (INJECT) {
+  // 注入模式全程没动过用户的浏览器，所以只需清理临时 profile
+  if (!KEEP_PROFILE) { try { rmSync(PROFILE, { recursive: true, force: true }); log("已清理临时 profile"); } catch {} }
+  log("完成（用户浏览器未受影响，无需恢复）");
+} else {
+  spawn(QUARK, ["--user-data-dir=" + USER_DATA, "--no-first-run"], { detached: true, stdio: "ignore" }).unref();
+  log("完成（已重启夸克）");
+}

@@ -202,18 +202,59 @@ node scripts/browser-collect.mjs --sec <sec_uid|主页链接|抖音号> [--limit
 - 裸 sec_uid（`MS4wLj` 开头）
 - **抖音号**（主页上那串数字，如 `203775400`）
 
-### 必须先完全退出浏览器
+### 两种工作模式
+
+| 模式 | 命令 | 需退出浏览器 | 适用场景 |
+|---|---|---|---|
+| **A 注入模式**（推荐） | 加 `--cookie-file` | **不需要** | 无人值守、反复采集 |
+| B 真实 profile 模式 | 不加该参数 | 需要 | 手头没有 cookie 文件时 |
+
+#### A. 注入模式（推荐）
+
+用**全新临时 profile** 启动一个独立实例，再通过 CDP 把已保存的登录 cookie 注入进去。
+**全程不碰你正在用的浏览器**，采完自动清理临时 profile。
+
+```bash
+# 1) 先生成 cookie 文件（只需做一次；此步浏览器需完全退出）
+node scripts/extract-cookies.mjs --browser quark --domain douyin.com --out .cookie.txt
+
+# 2) 之后可反复采集，浏览器开着也没关系
+node scripts/browser-collect.mjs --sec <抖音号> --limit 200 --cookie-file .cookie.txt
+```
+
+实测约 **24 秒**采完 200 条。输出会确认登录态：
+
+```text
+注入模式：全新临时 profile C:\...\quark-inject
+cookie 注入: 成功 63 失败 0 | douyin.com 现有 59 条，含 sessionid: true
+打开博主主页...
+  捕获一页 +19（新增 19，累计 19）
+采集结束: 253 条
+已写入 ./works.json: 200 条
+已清理临时 profile
+完成（用户浏览器未受影响，无需恢复）
+```
+
+> `extract-cookies.mjs` 需要浏览器**完全退出**（Cookie 库是独占锁，连共享读都不行），
+> 但它**只需跑一次** —— 拿到的 cookie 文件可以长期复用。
+> 不想跑脚本也可以：F12 → Application → Cookies，手工拼成 `name=value; name=value` 一行。
+>
+> 若浏览器启用了 App-Bound Encryption（`v20` 前缀），脚本会明确报错并退出 —— 该格式无法离线解密。
+
+#### B. 真实 profile 模式
+
+```bash
+node scripts/browser-collect.mjs --sec <抖音号> --limit 100
+```
 
 **关掉窗口不够。** 夸克、Edge 等浏览器都有后台常驻进程，会锁住 profile 与 Cookie 库。
-请从**任务栏托盘右键 → 退出**，或任务管理器结束进程。
+请从**任务栏托盘右键 → 退出**，或任务管理器结束进程。脚本会自动完成：
 
-脚本会自动完成：
-
-~~~text
+```text
 检测浏览器退出 → 带远程调试启动（真实 profile）→ 打开博主主页
 → 滚轮翻页 → 捕获作品列表接口响应 → 写 works.json
 → 关闭调试实例 → 重新正常启动浏览器还给你
-~~~
+```
 
 采集 100 条约需 1~2 分钟。
 
@@ -503,7 +544,8 @@ shortvideos-collector/
 ├── assets/
 │   └── wechat-qr.png      微信二维码（联系方式）
 └── scripts/
-    ├── browser-collect.mjs   CDP 作品采集
+    ├── browser-collect.mjs   CDP 作品采集（注入模式 / 真实 profile 模式）
+    ├── extract-cookies.mjs   从浏览器提取 cookie（零依赖，DPAPI + AES-GCM）
     ├── download.mjs          批量下载（快照 / 外部解析器）
     ├── build-resolver.mjs    从上游克隆构建解析器（原创抽取脚本）
     ├── batch_transcribe.py   批量转写

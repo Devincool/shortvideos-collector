@@ -203,19 +203,66 @@ All three input forms are accepted:
 - Raw sec_uid (starts with `MS4wLj`)
 - **Douyin ID** — the plain number shown on the profile, e.g. `203775400`
 
-### You must FULLY quit the browser first
+### Two modes
 
-**Closing the window is not enough.** Quark, Edge and other browsers keep background
-processes alive that hold a lock on the profile and the cookie database.
-Use **tray icon -> Quit**, or end the processes in Task Manager.
+| Mode | Command | Browser quit required | Best for |
+|---|---|---|---|
+| **A injection** (recommended) | add `--cookie-file` | **no** | unattended / repeated runs |
+| B real profile | omit that flag | yes | when you have no cookie file |
 
-The script then does everything automatically:
+#### A. Injection mode (recommended)
 
-~~~text
-wait for browser exit -> launch with remote debugging (real profile) -> open profile page
--> wheel-scroll to paginate -> capture works-list API responses -> write works.json
+Launches a **separate instance with a fresh temporary profile**, then injects your saved
+login cookies over CDP. **Your own browser is never touched**, and the temp profile is
+removed afterwards.
+
+```bash
+# 1) produce a cookie file once (this step needs the browser fully quit)
+node scripts/extract-cookies.mjs --browser quark --domain douyin.com --out .cookie.txt
+
+# 2) collect as often as you like — your browser can stay open
+node scripts/browser-collect.mjs --sec <douyin-id> --limit 200 --cookie-file .cookie.txt
+```
+
+Measured: ~**24 seconds** for 200 items. The output confirms the login state:
+
+```text
+injection mode: fresh temp profile C:\...\quark-inject
+cookie inject: ok 63 fail 0 | douyin.com now has 59, sessionid present: true
+opening creator page...
+  captured a page +19 (new 19, total 19)
+collection finished: 253 items
+wrote ./works.json: 200 items
+temp profile removed
+done (your browser was never touched)
+```
+
+> `extract-cookies.mjs` requires the browser to be **fully quit** (the cookie DB is
+> exclusively locked — even shared reads fail), but it only needs to run **once**; the file
+> can be reused indefinitely.
+> You can also skip the script: F12 -> Application -> Cookies, then join them manually into
+> a single `name=value; name=value` line.
+>
+> If the browser uses App-Bound Encryption (`v20` prefix) the script reports it and exits —
+> that format cannot be decrypted offline.
+
+#### B. Real-profile mode
+
+```bash
+node scripts/browser-collect.mjs --sec <douyin-id> --limit 100
+```
+
+**Closing the window is not enough.** Quark, Edge and others keep background processes that
+hold the profile and the cookie DB. Use **tray icon -> Quit**, or end the processes. The
+script then handles everything:
+
+```text
+wait for browser exit -> launch with remote debugging (real profile) -> open creator page
+-> wheel-scroll -> capture works-list responses -> write works.json
 -> kill the debug instance -> relaunch your browser normally
-~~~
+```
+
+100 items take roughly 1-2 minutes.
 
 Collecting 100 items takes roughly 1-2 minutes.
 
@@ -513,7 +560,8 @@ shortvideos-collector/
 ├── assets/
 │   └── wechat-qr.png      WeChat QR code (contact)
 └── scripts/
-    ├── browser-collect.mjs  CDP works collector
+    ├── browser-collect.mjs  CDP works collector (injection / real-profile mode)
+    ├── extract-cookies.mjs  Cookie extractor (zero-dep, DPAPI + AES-GCM)
     ├── download.mjs         Bulk downloader (snapshot / external resolver)
     ├── build-resolver.mjs   Build a resolver from an upstream clone
     ├── batch_transcribe.py  Batch transcription
