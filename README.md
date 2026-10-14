@@ -7,11 +7,16 @@
 > 抖音博主视频采集全流水线：从作品列表一路做到可分析的文字语料。
 
 ~~~text
-作品列表 ──→ 无水印视频 ──→ 转写文本 ──→ 时间线语料
- CDP 采集      两条路可选       whisper       可读文档
+                    ┌── 视频 ──→ whisper 转写 ──┐
+作品列表 ─→ 判定类型 ┤                          ├─→ 时间线语料
+ CDP 采集           └── 图文 ──→ RapidOCR ────┘
+                                  （图片取字）
 ~~~
 
-零 npm 依赖（Node 20+ / Python 3.10+）。**不依赖任何付费 API**，转写全程本机，数据不出本地。
+零 npm 依赖（Node 20+ / Python 3.10+）。**不依赖任何付费 API**，转写与 OCR 全程本机，数据不出本地。
+
+> 一个博主的作品分两类：**视频帖**有音轨，走 whisper 转写；**图文帖**没有音轨、只有图片，走 OCR。
+> 抖音图文帖占比不低（实测某财经博主 200 条里 **107 条是图文**），不处理这块会直接丢掉一半语料。
 
 ---
 
@@ -21,8 +26,9 @@
 |---|---|---|
 | **采集作品列表** | 用 CDP 驱动你自己已登录的浏览器，拿到某博主的全部作品（标题/发布时间/点赞/评论/收藏/分享/封面/直链） | 需要 |
 | **批量下载无水印视频** | 两条路径可选（CDN 快照直链 / 外部解析器现取现用） | 不需要 |
-| **批量转写** | 本地 faster-whisper，GPU 加速约 15 倍实时，带时间轴与低置信度标注 | 不需要 |
-| **合成时间线语料** | 把元数据与转写按发布时间排序，输出可直接阅读/喂给模型的文档 | 不需要 |
+| **批量转写（视频）** | 本地 faster-whisper，GPU 加速约 15 倍实时，带时间轴与低置信度标注 | 不需要 |
+| **图文帖 OCR** | 图文帖没有音轨，用本地 RapidOCR 从图片提取文字，顺带把图片存为素材 | 不需要 |
+| **合成时间线语料** | 把元数据与两类文字稿按发布时间排序，输出可直接阅读/喂给模型的文档 | 不需要 |
 
 ---
 
@@ -32,16 +38,20 @@
 git clone https://github.com/Devincool/shortvideos-collector.git
 cd shortvideos-collector
 
-# 1) 采集作品列表 —— 先「完全退出」浏览器（不是关窗口！）
-node scripts/browser-collect.mjs --sec 203775400 --limit 100 --out ./works.json
+# 1) 采集作品列表 —— 推荐注入模式，不需要退出浏览器（详见下文）
+node scripts/extract-cookies.mjs --browser quark --domain douyin.com --out .cookie.txt
+node scripts/browser-collect.mjs --sec 203775400 --limit 100 --out ./works.json --cookie-file .cookie.txt
 
 # 2) 下载无水印视频（用快照直链，最快且不受页面风控）
 node scripts/download.mjs --list ./works.json --out ./videos --from-snapshot
 
-# 3) 批量转写（GPU 需先装 CUDA 运行库，见下文）
+# 3a) 视频帖 → 转写（GPU 需先装 CUDA 运行库，见下文）
 python scripts/batch_transcribe.py ./videos small
 
-# 4) 合成时间线语料
+# 3b) 图文帖 → OCR 取字（没有图文帖会自动跳过）
+python scripts/ocr_images.py ./videos ./works.json
+
+# 4) 合成时间线语料（视频转写与图文 OCR 一起排）
 node scripts/build_corpus.mjs --works ./works.json --material ./videos --out ./_corpus.md
 ~~~
 
@@ -150,6 +160,37 @@ CUDA DLL 路径: 27 个
 [8.7-14.1] 前一天的烂板换手率达到百分之六十 ★复核
 ```
 
+### 步骤 3b · 图文帖 OCR（图文占比高时必须做）
+
+上面这步只处理视频。**图文帖没有音轨，转写会直接跳过它们** —— 必须单独跑 OCR。
+
+~~~bash
+$ python scripts/ocr_images.py ./videos ./works.json
+~~~
+
+另一个真实例子（抖音号 `cycle_stock`，200 条里 **107 条是图文**）：
+
+~~~text
+图文帖 107 个（总条目 200）
+[1/107] 7695044955277987091 图1 成功1 字符125 耗时1.6s
+[2/107] 7695022887253724416 图1 成功1 字符321 耗时4.9s
+[3/107] 7684464603472618235 图4 成功4 字符406 耗时5.3s
+...
+完成 107 个图文帖, 耗时 4.3 分钟, 提取文字约 22 千字
+~~~
+
+产出与转写同构的 `.txt`（按图片分块），图片本身也落盘留作素材：
+
+~~~text
+[图1]
+今天聊聊周期论里的"穷变通久"
+穷是拐点区，变是酝酿段
+通是很多人慢慢认识到，久是上涨开始加速
+~~~
+
+> 视频转写和图文 OCR 的产物**格式一致**，所以第 4 步的语料合成器不用改，
+> 会把两类文字按发布时间一起排进时间线。
+
 ### 步骤 4 · 合成时间线语料
 
 ```bash
@@ -180,13 +221,19 @@ _corpus.md     按时间线排序的完整语料（约 49 千字，可直接读�
 
 ## 环境要求
 
-- **Node.js >= 20**（用到内置 fetch、WebSocket）
-- **Python >= 3.10** + faster-whisper（仅转写需要）：
-  ~~~bash
-  pip install faster-whisper av
-  # 想用 GPU 再装：
-  pip install nvidia-cublas-cu12 nvidia-cudnn-cu12
-  ~~~
+- **Node.js >= 20**（用到内置 fetch、WebSocket；cookie 提取还用到内置 `node:sqlite`）
+- **Python >= 3.10**
+  - 视频转写需要 faster-whisper；想用 GPU 再装 CUDA 运行库：
+    ~~~bash
+    pip install faster-whisper av
+    pip install nvidia-cublas-cu12 nvidia-cudnn-cu12
+    ~~~
+  - 图文帖 OCR 需要 RapidOCR（纯本地 onnxruntime，无需联网、无需 GPU）：
+    ~~~bash
+    pip install rapidocr_onnxruntime
+    ~~~
+
+> 只做其中一段就只装对应的依赖 —— 比如只采集不转写，Python 依赖一个都不用装。
 
 ---
 
@@ -387,6 +434,7 @@ node scripts/build_corpus.mjs --works ./works.json --material ./videos --out ./_
 | 采集某博主的作品列表 | `browser-collect.mjs` | sec_uid / 主页链接 / 抖音号 | `works.json` |
 | 批量下载一批视频 | `download.mjs` | 任意含媒体信息的 JSON | `*.mp4` |
 | 把一批视频转成文字 | `batch_transcribe.py` | **任意目录**的视频 | `*.txt` |
+| 把图文帖的图片转成文字 | `ocr_images.py` | 含 `images` 数组的 JSON | `*.txt` |
 | 把元数据 + 文本排成时间线 | `build_corpus.mjs` | JSON + txt 目录 | `_corpus.md` |
 
 ### 只用采集器
@@ -412,6 +460,25 @@ node -e "const w=require('./raw.json'); console.log(w.nickname, w.total, '条');
 python scripts/batch_transcribe.py "D:\我的视频" medium
 python scripts/batch_transcribe.py "D:\我的视频" small 10   # 只转前 10 个试水
 ```
+
+### 只用 OCR（也跟抖音无关）
+
+`ocr_images.py` 只认两样：一个**含 `images` 数组的 JSON**，和一个放图片的输出目录。
+任何图集都能用：
+
+```json
+[
+  { "aweme_id": "1", "desc": "第一组", "images": ["https://.../a.webp", "https://.../b.webp"] }
+]
+```
+
+```bash
+python scripts/ocr_images.py ./out ./my-images.json      # 全部
+python scripts/ocr_images.py ./out ./my-images.json 10   # 只跑前 10 条
+```
+
+没有 `is_image` 字段也没关系 —— 脚本会用「有没有 `images` 数组」来判断是不是图文帖。
+产出：每条一个 `.txt`（按图片分块），图片本身也下载到同一目录。
 
 跳过已有转写，支持中断续跑。
 
@@ -548,8 +615,9 @@ shortvideos-collector/
     ├── extract-cookies.mjs   从浏览器提取 cookie（零依赖，DPAPI + AES-GCM）
     ├── download.mjs          批量下载（快照 / 外部解析器）
     ├── build-resolver.mjs    从上游克隆构建解析器（原创抽取脚本）
-    ├── batch_transcribe.py   批量转写
-    └── build_corpus.mjs      语料合成
+    ├── batch_transcribe.py   视频转写（whisper）
+    ├── ocr_images.py         图文帖 OCR（RapidOCR）
+    └── build_corpus.mjs      语料合成（两类文字一起排）
 ~~~
 
 ---

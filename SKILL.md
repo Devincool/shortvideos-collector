@@ -25,10 +25,15 @@ metadata:
 |---|---|---|---|
 | ① 取列表 | `scripts/browser-collect.mjs` | **需要**（浏览器已登录即可） | `works.json` |
 | ② 下载 | `scripts/download.mjs` | 不需要 | `*.mp4` |
-| ③ 转写 | `scripts/batch_transcribe.py` | 不需要 | `*.txt` |
+| ③a 转写（视频帖） | `scripts/batch_transcribe.py` | 不需要 | `*.txt` |
+| ③b OCR（图文帖） | `scripts/ocr_images.py` | 不需要 | `*.txt` + 图片 |
 | ④ 整理 | `scripts/build_corpus.mjs` | 不需要 | `_corpus.md` |
 
-除①外全程不需要 Cookie；转写在本机完成，数据不出本地。
+除①外全程不需要 Cookie；转写与 OCR 都在本机完成，数据不出本地。
+
+> **③ 是分支，不是单步。** 博主的作品分视频帖与图文帖两类：视频有音轨走 whisper，
+> 图文没有音轨只能从图片取字。**漏掉 ③b 会直接丢掉图文那部分语料** ——
+> 实测某财经博主 200 条里 107 条是图文。图文占比低时 ③b 会自动跳过，不会报错。
 
 ---
 
@@ -51,10 +56,13 @@ git clone --depth 1 https://github.com/wu529778790/parse.shenzjd.com.git upstrea
 node scripts/build-resolver.mjs --source upstream --out ./resolver
 PARSER_CORE_DIR=./resolver node scripts/download.mjs --list ./works.json --out ./videos --concurrency 1 --delay 3000
 
-# ③ 转写
+# ③a 视频帖 → 转写
 python scripts/batch_transcribe.py ./videos small
 
-# ④ 语料
+# ③b 图文帖 → OCR（没有图文帖会自动跳过）
+python scripts/ocr_images.py ./videos ./works.json
+
+# ④ 语料（两类文字一起按时间线合排）
 node scripts/build_corpus.mjs --works ./works.json --material ./videos --out ./_corpus.md
 ~~~
 
@@ -184,7 +192,8 @@ shortvideos-collector/
     ├── extract-cookies.mjs
     ├── download.mjs
     ├── build-resolver.mjs
-    ├── batch_transcribe.py
+    ├── batch_transcribe.py   视频转写（whisper）
+    ├── ocr_images.py         图文帖 OCR（RapidOCR）
     └── build_corpus.mjs
 ~~~
 

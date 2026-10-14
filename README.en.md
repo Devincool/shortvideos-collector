@@ -7,11 +7,15 @@
 > An end-to-end pipeline for Douyin (TikTok China) creator videos — from a works list all the way to an analyzable text corpus.
 
 ~~~text
-Works list ──→ Watermark-free video ──→ Transcript ──→ Timeline corpus
- CDP scrape      two paths available        whisper        readable doc
+                     ┌── video ──→ whisper transcript ──┐
+Works list ─→ classify ┤                                 ├─→ timeline corpus
+ CDP scrape            └── image post ──→ RapidOCR ─────┘
+                                        (text in images)
 ~~~
 
-Zero npm dependencies (Node 20+ / Python 3.10+). **No paid API required.** Transcription runs entirely on your machine — no data leaves your computer.
+Zero npm dependencies (Node 20+ / Python 3.10+). **No paid API required.** Transcription and OCR run entirely on your machine — no data leaves your computer.
+
+> A creator's posts come in two kinds: **video posts** have audio and go through whisper; **image posts** have no audio at all and must be read from the pictures via OCR. Image posts are common on Douyin (one measured finance creator had **107 image posts out of 200**) — skip them and you lose half the corpus.
 
 ---
 
@@ -21,8 +25,9 @@ Zero npm dependencies (Node 20+ / Python 3.10+). **No paid API required.** Trans
 |---|---|---|
 | **Collect works list** | Drives your own logged-in browser via CDP to capture a creator's full works (title / publish time / likes / comments / collects / shares / cover / direct URL) | Yes |
 | **Bulk download watermark-free video** | Two selectable paths (CDN snapshot URL / external resolver, resolved on the fly) | No |
-| **Bulk transcription** | Local faster-whisper, ~15x realtime on GPU, with timestamps and low-confidence flags | No |
-| **Build timeline corpus** | Merges metadata and transcripts in publish order into a document you can read or feed to a model | No |
+| **Bulk transcription (video)** | Local faster-whisper, ~15x realtime on GPU, with timestamps and low-confidence flags | No |
+| **Image-post OCR** | Image posts have no audio — local RapidOCR extracts the text from the pictures and keeps them as source assets | No |
+| **Build timeline corpus** | Merges metadata and both kinds of text in publish order into a document you can read or feed to a model | No |
 
 ---
 
@@ -32,16 +37,20 @@ Zero npm dependencies (Node 20+ / Python 3.10+). **No paid API required.** Trans
 git clone https://github.com/Devincool/shortvideos-collector.git
 cd shortvideos-collector
 
-# 1) Collect works list — FULLY QUIT your browser first (not just close the window!)
-node scripts/browser-collect.mjs --sec 203775400 --limit 100 --out ./works.json
+# 1) Collect works list — injection mode, no need to quit your browser (see below)
+node scripts/extract-cookies.mjs --browser quark --domain douyin.com --out .cookie.txt
+node scripts/browser-collect.mjs --sec 203775400 --limit 100 --out ./works.json --cookie-file .cookie.txt
 
 # 2) Download watermark-free videos (snapshot path: fastest, no page-level rate limiting)
 node scripts/download.mjs --list ./works.json --out ./videos --from-snapshot
 
-# 3) Batch transcribe (GPU needs CUDA runtime libs — see below)
+# 3a) Video posts -> transcript (GPU needs CUDA runtime libs — see below)
 python scripts/batch_transcribe.py ./videos small
 
-# 4) Build the timeline corpus
+# 3b) Image posts -> OCR (auto-skips if there are none)
+python scripts/ocr_images.py ./videos ./works.json
+
+# 4) Build the timeline corpus (video transcripts + image OCR together)
 node scripts/build_corpus.mjs --works ./works.json --material ./videos --out ./_corpus.md
 ~~~
 
@@ -151,6 +160,39 @@ Each video yields a same-named `.txt` with timestamps and low-confidence flags:
 [8.7-14.1] The previous day's broken limit-up had a 60% turnover rate ★REVIEW
 ```
 
+### Step 3b · Image-post OCR (required when image posts are common)
+
+The step above only handles video. **Image posts have no audio, so transcription skips them
+entirely** — they need OCR.
+
+~~~bash
+$ python scripts/ocr_images.py ./videos ./works.json
+~~~
+
+Another real run (Douyin ID `cycle_stock` — **107 of 200 posts were image posts**):
+
+~~~text
+107 image posts (200 total)
+[1/107] 7695044955277987091 imgs=1 ok=1 chars=125 1.6s
+[2/107] 7695022887253724416 imgs=1 ok=1 chars=321 4.9s
+[3/107] 7684464603472618235 imgs=4 ok=4 chars=406 5.3s
+...
+done 107 image posts, 4.3 min, ~22k characters extracted
+~~~
+
+Each post yields a `.txt` in the same shape as a transcript (split per image), and the
+images themselves land on disk as source assets:
+
+~~~text
+[img1]
+Today let's talk about "qiong-bian-tong-jiu" in cycle theory
+qiong is the turning zone, bian the brewing phase
+tong is when most people start to notice, jiu is when the advance accelerates
+~~~
+
+> Video transcripts and image OCR share one format, so step 4 needs no changes — it merges
+> both kinds of text into a single timeline.
+
 ### Step 4 · Build the timeline corpus
 
 ```bash
@@ -181,13 +223,19 @@ _corpus.md     full timeline-ordered corpus (~49k chars, ready to read or feed t
 
 ## Requirements
 
-- **Node.js >= 20** (uses built-in fetch and WebSocket)
-- **Python >= 3.10** + faster-whisper (transcription only):
-  ~~~bash
-  pip install faster-whisper av
-  # for GPU acceleration:
-  pip install nvidia-cublas-cu12 nvidia-cudnn-cu12
-  ~~~
+- **Node.js >= 20** (built-in fetch and WebSocket; cookie extraction also uses built-in `node:sqlite`)
+- **Python >= 3.10**
+  - Video transcription needs faster-whisper; for GPU acceleration add the CUDA runtime libs:
+    ~~~bash
+    pip install faster-whisper av
+    pip install nvidia-cublas-cu12 nvidia-cudnn-cu12
+    ~~~
+  - Image-post OCR needs RapidOCR (local onnxruntime — no network, no GPU):
+    ~~~bash
+    pip install rapidocr_onnxruntime
+    ~~~
+
+> Using only one stage means installing only that stage's dependencies — collect without transcribing and you need no Python packages at all.
 
 ---
 
@@ -400,6 +448,7 @@ and the scripts share no code (they are not even the same language: 3 Node + 1 P
 | Collect a creator's works list | `browser-collect.mjs` | sec_uid / profile URL / Douyin ID | `works.json` |
 | Bulk download a set of videos | `download.mjs` | any JSON containing media info | `*.mp4` |
 | Turn a folder of videos into text | `batch_transcribe.py` | **any directory** of video | `*.txt` |
+| Turn image posts into text | `ocr_images.py` | JSON with an `images` array | `*.txt` |
 | Order metadata + text on a timeline | `build_corpus.mjs` | JSON + a txt directory | `_corpus.md` |
 
 ### Collector only
@@ -426,6 +475,25 @@ spoken Chinese video will transcribe:
 python scripts/batch_transcribe.py "/path/to/my/videos" medium
 python scripts/batch_transcribe.py "/path/to/my/videos" small 10   # try the first 10
 ```
+
+### OCR only (also nothing to do with Douyin)
+
+`ocr_images.py` needs just two things: a **JSON with an `images` array**, and an output
+directory for the pictures. Any image set works:
+
+```json
+[
+  { "aweme_id": "1", "desc": "first set", "images": ["https://.../a.webp", "https://.../b.webp"] }
+]
+```
+
+```bash
+python scripts/ocr_images.py ./out ./my-images.json      # all
+python scripts/ocr_images.py ./out ./my-images.json 10   # first 10 only
+```
+
+No `is_image` field required — the script falls back to "does it have an `images` array".
+Output: one `.txt` per post (split per image), with the images themselves saved alongside.
 
 Already-transcribed files are skipped, so it is resumable.
 
@@ -564,8 +632,9 @@ shortvideos-collector/
     ├── extract-cookies.mjs  Cookie extractor (zero-dep, DPAPI + AES-GCM)
     ├── download.mjs         Bulk downloader (snapshot / external resolver)
     ├── build-resolver.mjs   Build a resolver from an upstream clone
-    ├── batch_transcribe.py  Batch transcription
-    └── build_corpus.mjs     Corpus builder
+    ├── batch_transcribe.py  Video transcription (whisper)
+    ├── ocr_images.py        Image-post OCR (RapidOCR)
+    └── build_corpus.mjs     Corpus builder (both kinds of text)
 ~~~
 
 ---
